@@ -105,30 +105,31 @@ int main(int argc, char **argv) {
 	char *animation;
 	Uint32 animlength;
 
-	char *modem = "/dev/ttyUSB0";
-	char *memfile ="./memcard.mcr";
-	int blinklight = TRUE; 
+	char *serialport = "/dev/ttyUSB0";
+	char *memcardfile ="memcard.mcr";
+	int blinklight = FALSE;
 
-	animation = ".oOo. ";
+	//animation = ".oOo. ";
+	animation = "-\\|/";
 	animlength = strlen(animation);
 
-	while((count = getopt (argc, argv, "bdf:hm:")) != -1)
+	while((count = getopt (argc, argv, "bdf:hs:")) != -1)
 		switch(count) {
 			case 'b':
-				blinklight = FALSE;
+				blinklight = TRUE;
 				break;
 			case 'd':
 				debug = TRUE;
 				break;
 			case 'f':
-				memfile = optarg;
+				memcardfile = optarg;
 				break;
 			case 'h':
 				show_help();
 				exit(-1);
 				break;
-			case 'm':
-				modem = optarg;
+			case 's':
+				serialport = optarg;
 				break;
 			case '?':
 				if ((optopt == 'f')||(optopt == 'm'))
@@ -143,8 +144,8 @@ int main(int argc, char **argv) {
 		}		
      
 	if (debug) {
-		printf("modem = %s, memfile = %s, blinklight = %d, debug = %d\n",
-			      modem, memfile, blinklight, debug);
+		fprintf(stdout, "DEBUG: serialport = %s, memcardfile = %s, blinklight = %d, debug = %d\n",
+			      				serialport, memcardfile, blinklight, debug);
 	}
 															     
 	
@@ -153,14 +154,14 @@ int main(int argc, char **argv) {
 		exit(-1);
 	}
 
-	if (access(memfile, F_OK) == 0) {
-		fprintf(stderr, "File %s already exist, aborting.\n", memfile);
+	if (access(memcardfile, F_OK) == 0) {
+		fprintf(stderr, "File %s already exist, aborting.\n", memcardfile);
 		exit(-1);
 	}
 
-	fd = open(modem, O_RDWR | O_NOCTTY ); 
+	fd = open(serialport, O_RDWR | O_NOCTTY ); 
 	if (fd < 0) {
-		perror(modem);
+		perror(serialport);
 		cleanup(fd, oldtio, -1);
 	}
 
@@ -192,15 +193,15 @@ int main(int argc, char **argv) {
 		cleanup(fd, oldtio, -1);
 	} else {
 		tmp = HexOut(buffer, 5);
-		fprintf(stderr, "Device initialized, returned %s\n", tmp);
+		fprintf(stdout, "Device initialized, returned %s\n", tmp);
 		free(tmp);
 		if(memcmp(&buffer[1], "PSX", 3) == 0) {
-			fprintf(stderr, "Playstation DexDrive detected.\n");
+			fprintf(stdout, "Playstation DexDrive detected.\n");
 			type = PSX;
 			framesdump = 0x400;
 			framesize = 128;
 		} else if(memcmp(&buffer[1], "N64", 3) == 0) {
-			fprintf(stderr, "Nintendo 64 DexDrive detected.\n");
+			fprintf(stdout, "Nintendo 64 DexDrive detected.\n");
 			type = N64;
 			framesdump = 0x80;
 			framesize = 256;
@@ -213,14 +214,14 @@ int main(int argc, char **argv) {
 	response = DDHandshake(fd);
 	if(response == ERROR) {
 		if(type == PSX) {
-			fprintf(stderr, "Handshake returned expected ERROR response for a Playstation dexdrive.\n");
+			fprintf(stdout, "Handshake returned expected ERROR response for a Playstation dexdrive.\n");
 		} else {
 			fprintf(stderr, "N64 DexDrive returned ERROR in response to handshake.\n");
 			cleanup(fd, oldtio, -1);
 		}
 	}
 	response = DDStatus(fd, buffer, &length);
-	fprintf(stderr, "%s.\n", DDStrResponse(response));
+	fprintf(stdout, "%s.\n", DDStrResponse(response));
 	switch(response) {
 		case NOCARD:
 			cleanup(fd, oldtio, -1);
@@ -231,10 +232,10 @@ int main(int argc, char **argv) {
 			if(type == PSX && length == 1) {
 				switch(buffer[0]) {
 					case 0x00:
-						fprintf(stderr, "Playstation DexDrive reports a successful write since last reset.\n");
+						fprintf(stdout, "Playstation DexDrive reports a successful write since last reset.\n");
 						break;
 					case 0x10:
-						fprintf(stderr, "Playstation DexDrive reports no successful writes since last reset.\n");
+						fprintf(stdout, "Playstation DexDrive reports no successful writes since last reset.\n");
 						break;
 					default:
 						fprintf(stderr, "Playstation DexDrive returned an unknown status: %X.", buffer[0]);
@@ -246,15 +247,16 @@ int main(int argc, char **argv) {
 			cleanup(fd, oldtio, -1);
 			break;
 	}
-	outfile = fopen(memfile, "wb");
+	outfile = fopen(memcardfile, "wb");
 	if(outfile == NULL) {
 		fprintf(stderr, "Couldn't open file for writing.\n");
 		cleanup(fd, oldtio, -1);
 	}
-
 	wait.tv_sec = 0;
 	wait.tv_nsec = 10000000;
 	for(i = 0; i < framesdump; i++) {
+
+		//print progress bar
 		fputc('\r', stderr);
 		fputc('|', stderr);
 		barsize = i / barstep;
@@ -265,9 +267,15 @@ int main(int argc, char **argv) {
 			fputc('-', stderr);
 		}
 		fprintf(stderr, "| %c %i/%i", animation[i % animlength], i + 1, framesdump);
+
+		if (debug) {
+			fprintf(stdout, "\n");
+		}
+
 		if (blinklight) {
 			response = DDLight(fd, 1);
 		}
+
 		response = DDRead(fd, i, buffer, &length, framesize + 1);
 		if(length < framesize + 1) {
 			fprintf(stderr, "Incomplete DATA response, expected %d bytes, got %d.\n", framesize + 1, length);
@@ -276,6 +284,7 @@ int main(int argc, char **argv) {
 			}
 			cleanup(fd, oldtio, -1);
 		}
+
 		switch(response) {
 			case NOCARD:
 				fprintf(stderr, "No card is inserted or card removed.\n");
@@ -297,26 +306,29 @@ int main(int argc, char **argv) {
 				cleanup(fd, oldtio, -1);
 				break;
 		}
+
 		if (blinklight) {
 			response = DDLight(fd, 0);
 		}
+
 		nanosleep(&wait, NULL);
 	}
 
 	fclose(outfile);
+	fprintf(stdout, "\nDump complete and saved as %s\n", memcardfile);
 	cleanup(fd, oldtio, 0);
 }
 
 void show_help(void) {
-	printf( "Usage:DDread [OPTIONS]\n"\
-					"This programm will dump a memory card from a DexDrive\n"\
-					"Currently t only supports PSX and N64 DexDrives while PSX is tested best.\n\n"\
-					"You can choose the follwing Options:\n"\
-					"\t-b  disable the blinking light on the DexDrive\n"\
-					"\t-d  enable debug messages\n"\
-					"\t-f  the file the memory card is saved to (Default \"./memcard.mcr\")\n"\
-					"\t-h  display this help text and exit\n"\
-					"\t-m  choose the tty port the DexDrive is attached to (Default \"/dev/ttyUSB0\")\n");
+	fprintf(stdout, "Usage:DDread [OPTIONS]\n"\
+									"This programm will dump a memory card from a DexDrive.\n"\
+									"Currently it only supports PSX and N64 DexDrives while the PSX DexDrive is tested best.\n\n"\
+									"You can choose the follwing Options:\n"\
+									"\t-b  enable the blinking light on the DexDrive, this will slow down the dump\n"\
+									"\t-d  enable debug messages\n"\
+									"\t-f  the file the memory card is saved to (Default \"memcard.mcr\")\n"\
+									"\t-h  display this help text and exit\n"\
+									"\t-s  choose the serial port the DexDrive is attached to (Default \"/dev/ttyUSB0\")\n");
 }
 
 void cleanup(int fd, struct termios oldtio, int status) {
@@ -444,7 +456,7 @@ DDResponse DDSendCmd(int fd, DDCommand cmd, const Uint8 *outdata, const Uint32 o
 	if (debug) {
 		tmp1 = HexOut(DD_PREFIX, DD_PREFIX_LENGTH);
 		tmp2 = HexOut(outdata, outlength);
-		printf("device <-- %s 0x%X %s\n", tmp1, cmd, tmp2);
+		fprintf(stdout, "DEBUG: device <-- %s 0x%X %s\n", tmp1, cmd, tmp2);
 		free(tmp1);
 		free(tmp2);
 	}
@@ -472,7 +484,7 @@ DDResponse DDSendCmd(int fd, DDCommand cmd, const Uint8 *outdata, const Uint32 o
 
 	if (debug) {
 		tmp1 = HexOut(prefix, length);
-		printf("device --> %s", tmp1);
+		fprintf(stdout, "DEBUG: device --> %s", tmp1);
 		free(tmp1);
 	}
 
@@ -492,7 +504,7 @@ DDResponse DDSendCmd(int fd, DDCommand cmd, const Uint8 *outdata, const Uint32 o
 	}
 
 	if (debug) {
-		printf(" 0x%X", response);
+		fprintf(stdout, " 0x%X", response);
 	}
 
 	switch(response) {
@@ -504,7 +516,7 @@ DDResponse DDSendCmd(int fd, DDCommand cmd, const Uint8 *outdata, const Uint32 o
 
 				if (debug) {
 					tmp1 = HexOut(indata, length);
-					printf(" %s", tmp1);
+					fprintf(stdout, " %s", tmp1);
 					free(tmp1);
 				}
 
@@ -518,7 +530,7 @@ DDResponse DDSendCmd(int fd, DDCommand cmd, const Uint8 *outdata, const Uint32 o
 	}
 
 	if (debug) {
-		printf("\n");
+		fprintf(stdout, "\n");
 	}
 
 	return(response);

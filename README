@@ -17,7 +17,7 @@ DDread [OPTIONS]
 Options
 -------
 
--b  disable the blinking light on the DexDrive
+-b  enable the blinking light on the DexDrive, this will slow down the dump
 -d  enable debug messages
 -f  the file the memory card is saved to (Default "memcard.mcr")
 -h  display this help text and exit
