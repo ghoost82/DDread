@@ -1,0 +1,25 @@
+DDread
+======
+
+A programm written in C to create a dumps of a memory card using a DexDrive.
+Currently it only supports PSX and N64 DexDrives while the function with a N64 DexDrive was not tested yet.
+
+The initial Version was written by paulguy and was announced on the Jul - Computers Forum (http://jul.rustedlogic.net/thread.php?pid=306043)
+He used the DexDrive protocol documentation from linux-dexdrive module by Frédéric Brière (http://www.gitorious.org/linux-dexdrive)
+It use some code copied from Serial Programming HOWTO by Gary Frerking and Peter Baumann (http://tldp.org/HOWTO/Serial-Programming-HOWTO/)
+Some code for the command line argument handling was copied from the GNU C Library documentation by the Free Software Foundation, Inc. (https://www.gnu.org/software/libc/manual/html_node/Getopt.html)
+
+Usage
+-----
+
+DDread [OPTIONS]
+
+Options
+-------
+
+-b  disable the blinking light on the DexDrive
+-d  enable debug messages
+-f  the file the memory card is saved to (Default "memcard.mcr")
+-h  display this help text and exit
+-s  choose the serial port the DexDrive is attached to (Default "/dev/ttyUSB0")
+
