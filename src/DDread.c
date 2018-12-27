@@ -24,6 +24,7 @@
 #include <strings.h>
 #include <stdint.h>
 #include <time.h>
+#include <ctype.h>
 
 #define FALSE 0
 #define TRUE 1
